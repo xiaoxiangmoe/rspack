@@ -7,7 +7,7 @@
     "**/.DS_Store": true,
     "**/*.bk": true,
     "/target": true,
-    "**/.yarn": true,
+    "**/.yarn": true
   },
   "[typescript]": {
     "editor.formatOnSave": true
@@ -19,9 +19,7 @@
   "cSpell.caseSensitive": true,
   "json.schemas": [
     {
-      "fileMatch": [
-        "test.config.json"
-      ],
+      "fileMatch": ["test.config.json"],
       // Point to the options schema of rspack.
       "url": "./crates/temp_test_utils/test.config.scheme.json"
     }
@@ -44,6 +42,8 @@
     "threejs",
     "tokio",
     "ukey",
-    "Ukey"
+    "Ukey",
+    "Ustr",
+    "ustr"
   ]
 }

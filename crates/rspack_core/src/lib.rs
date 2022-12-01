@@ -27,6 +27,8 @@ pub use compiler::*;
 mod options;
 pub use options::*;
 mod module_graph;
+mod module_graph2;
+mod task;
 pub use module_graph::*;
 mod chunk;
 pub use chunk::*;
