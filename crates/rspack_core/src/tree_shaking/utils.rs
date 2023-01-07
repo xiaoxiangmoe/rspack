@@ -45,3 +45,7 @@ pub fn get_dynamic_import_string_literal(e: &CallExpr) -> Option<JsWord> {
     None
   }
 }
+
+pub fn is_pure_expr(node: &Expr) -> bool {
+  todo!()
+}

@@ -56,6 +56,7 @@ pub fn parse(
   syntax: Syntax,
   filename: &str,
   module_type: &ModuleType,
+  comments: Option<&dyn Comments>,
 ) -> Result<Ast, Error> {
   let source_code = if syntax.dts() {
     // dts build result must be empty
@@ -73,7 +74,7 @@ pub fn parse(
     syntax,
     // TODO: Is this correct to think the code is module by default?
     IsModule::Bool(true),
-    None,
+    comments,
   ) {
     Ok(program) => Ok(Ast::new(program, cm)),
     Err(errs) => Err(Error::BatchErrors(

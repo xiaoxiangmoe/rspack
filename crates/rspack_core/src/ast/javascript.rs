@@ -1,6 +1,6 @@
 use anyhow::Error;
 use std::{hash::Hash, sync::Arc};
-use swc_core::base::try_with_handler;
+use swc_core::base::{try_with_handler, SwcComments};
 use swc_core::common::{
   errors::Handler, sync::Lrc, util::take::Take, Globals, Mark, SourceMap, GLOBALS,
 };
@@ -42,12 +42,12 @@ pub struct Context {
   pub helpers: Helpers,
   pub top_level_mark: Mark,
   pub unresolved_mark: Mark,
-  //  comments: swcComments,
+  comments: Option<SwcComments>,
   pub source_map: Arc<SourceMap>,
 }
 
 impl Context {
-  pub fn new(is_esm: bool, source_map: Arc<SourceMap>) -> Self {
+  pub fn new(is_esm: bool, source_map: Arc<SourceMap>, comments: Option<SwcComments>) -> Self {
     let globals: Globals = Default::default();
     // generate preset mark & helpers
     let (top_level_mark, unresolved_mark, helpers) =
@@ -60,6 +60,7 @@ impl Context {
       top_level_mark,
       unresolved_mark,
       source_map,
+      comments,
     }
   }
 }
@@ -100,7 +101,7 @@ impl Ast {
     };
     Self {
       program: Program(program),
-      context: Arc::new(Context::new(is_esm, source_map)),
+      context: Arc::new(Context::new(is_esm, source_map, None)),
     }
   }
 
