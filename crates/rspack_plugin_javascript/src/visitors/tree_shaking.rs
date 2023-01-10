@@ -52,7 +52,7 @@ struct TreeShaker<'a> {
 impl<'a> Fold for TreeShaker<'a> {
   noop_fold_type!();
   fn fold_program(&mut self, node: Program) -> Program {
-    debug_assert!(GLOBALS.is_set());
+    assert!(GLOBALS.is_set());
     node.fold_with(self)
   }
 
