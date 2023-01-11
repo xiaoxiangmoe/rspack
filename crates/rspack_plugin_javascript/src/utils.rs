@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use rspack_core::{ErrorSpan, ModuleType};
-use rspack_error::{DiagnosticKind, Error};
+use rspack_error::{DiagnosticKind, Error, Severity};
 use swc_core::common::{Span, Spanned, SyntaxContext, DUMMY_SP};
 use swc_core::ecma::ast::{CallExpr, Callee, Expr, ExprOrSpread, Ident, Lit, Str};
 use swc_core::ecma::atoms::js_word;
@@ -131,6 +131,7 @@ pub fn ecma_parse_error_to_rspack_error(
   error: swc_core::ecma::parser::error::Error,
   path: &str,
   module_type: &ModuleType,
+  severity: Severity,
 ) -> Error {
   let (file_type, diagnostic_kind) = match module_type {
     ModuleType::Js => ("JavaScript", DiagnosticKind::JavaScript),
@@ -148,7 +149,8 @@ pub fn ecma_parse_error_to_rspack_error(
     format!("{file_type} parsing error"),
     message,
   )
-  .with_kind(diagnostic_kind);
+  .with_kind(diagnostic_kind)
+  .with_severity(severity);
   rspack_error::Error::TraceableError(traceable_error)
   //Use this `Error` convertion could avoid eagerly clone source file.
 }

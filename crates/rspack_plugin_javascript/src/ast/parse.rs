@@ -2,7 +2,10 @@ use std::path::Path;
 use std::sync::Arc;
 
 use rspack_core::{ast::javascript::Ast, ModuleType};
-use rspack_error::Error;
+use rspack_error::{
+  Error, IntoTWithDiagnosticArray, IntoTWithGenericDiagnosticArray, Severity, TWithDiagnosticArray,
+  TWithGenericDiagnosticArray,
+};
 use swc_core::base::config::IsModule;
 use swc_core::common::comments::Comments;
 use swc_core::common::{FileName, SourceFile};
@@ -26,7 +29,10 @@ pub fn parse_js(
   syntax: Syntax,
   is_module: IsModule,
   comments: Option<&dyn Comments>,
-) -> Result<Program, Vec<parser::error::Error>> {
+) -> Result<
+  TWithGenericDiagnosticArray<Program, (parser::error::Error, rspack_error::Severity)>,
+  Vec<(parser::error::Error, rspack_error::Severity)>,
+> {
   let mut errors = vec![];
   let program_result = match is_module {
     IsModule::Bool(true) => {
@@ -38,17 +44,18 @@ pub fn parse_js(
     IsModule::Unknown => parse_file_as_program(&fm, syntax, target, comments, &mut errors),
   };
 
+  //
+  let mut normalized_errors = errors
+    .into_iter()
+    .map(|error| (error, Severity::Warn))
+    .collect::<Vec<_>>();
   // Using combinator will let rustc unhappy.
   match program_result {
-    Ok(program) => {
-      if !errors.is_empty() {
-        return Err(errors);
-      }
-      Ok(program)
-    }
+    Ok(program) => Ok(program.with_generic_diagnostic(normalized_errors)),
     Err(err) => {
-      errors.push(err);
-      Err(errors)
+      // This is unrecovered_error
+      normalized_errors.push((err, Severity::Error));
+      Err(normalized_errors)
     }
   }
 }
@@ -58,7 +65,8 @@ pub fn parse(
   syntax: Syntax,
   filename: &str,
   module_type: &ModuleType,
-) -> Result<Ast, Error> {
+) -> Result<TWithGenericDiagnosticArray<Ast, (parser::error::Error, rspack_error::Severity)>, Error>
+{
   let source_code = if syntax.dts() {
     // dts build result must be empty
     "".to_string()
@@ -77,11 +85,13 @@ pub fn parse(
     IsModule::Bool(true),
     None,
   ) {
-    Ok(program) => Ok(Ast::new(program, cm)),
+    Ok(parse_result) => Ok(parse_result.map(|inner| Ast::new(inner, cm))),
     Err(errs) => Err(Error::BatchErrors(
       errs
         .into_iter()
-        .map(|err| ecma_parse_error_to_rspack_error(err, filename, module_type))
+        .map(|(err, severity)| {
+          ecma_parse_error_to_rspack_error(err, filename, module_type, severity)
+        })
         .collect::<Vec<_>>(),
     )),
   }
