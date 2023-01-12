@@ -6,9 +6,8 @@ Object.defineProperty(exports, "__esModule", {
 });
 Object.defineProperty(exports, "something", {
     enumerable: true,
-    get: ()=>_libJs.default
+    get: ()=>default
 });
-const _libJs = __webpack_require__.ir(__webpack_require__("./lib.js"));
 },
 "./index.js": function (module, exports, __webpack_require__) {
 "use strict";

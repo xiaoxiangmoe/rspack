@@ -4,28 +4,29 @@ use rspack_core::{
 // use swc_ecma_utils::
 use rspack_symbol::{BetterId, IndirectTopLevelSymbol, Symbol};
 use rustc_hash::FxHashSet as HashSet;
+use swc_core::common::util::take::Take;
 use swc_core::common::{Mark, DUMMY_SP, GLOBALS};
 use swc_core::ecma::ast::*;
 use swc_core::ecma::atoms::JsWord;
 use swc_core::ecma::utils::quote_ident;
-use swc_core::ecma::visit::{noop_fold_type, Fold, FoldWith};
-pub fn tree_shaking_visitor<'a>(
-  module_graph: &'a ModuleGraph,
-  module_id: Identifier,
-  used_symbol_set: &'a HashSet<Symbol>,
-  used_indirect_symbol_set: &'a HashSet<IndirectTopLevelSymbol>,
-  top_level_mark: Mark,
-) -> impl Fold + 'a {
-  TreeShaker {
-    module_graph,
-    module_identifier: module_id,
-    used_symbol_set,
-    used_indirect_symbol_set,
-    top_level_mark,
-    module_item_index: 0,
-    insert_item_tuple_list: Vec::new(),
-  }
-}
+use swc_core::ecma::visit::{noop_visit_mut_type, VisitMut, VisitMutWith};
+// pub fn tree_shaking_visitor<'a>(
+//   module_graph: &'a ModuleGraph,
+//   module_id: Identifier,
+//   used_symbol_set: &'a HashSet<Symbol>,
+//   used_indirect_symbol_set: &'a HashSet<IndirectTopLevelSymbol>,
+//   top_level_mark: Mark,
+// ) -> impl visit_mut + 'a {
+//   TreeShaker {
+//     module_graph,
+//     module_identifier: module_id,
+//     used_symbol_set,
+//     used_indirect_symbol_set,
+//     top_level_mark,
+//     module_item_index: 0,
+//     insert_item_tuple_list: Vec::new(),
+//   }
+// }
 
 /// The basic idea of shaking the tree is pretty easy,
 /// we visit each export symbol, if the symbol is marked as used in the tree-shaking analysis phase,
@@ -38,43 +39,38 @@ pub fn tree_shaking_visitor<'a>(
 /// function test() {}
 /// ```
 /// if function `test` is also unused in local module, then it will be removed in DCE phase of `swc`
-struct TreeShaker<'a> {
-  module_graph: &'a ModuleGraph,
-  module_identifier: Identifier,
-  used_indirect_symbol_set: &'a HashSet<IndirectTopLevelSymbol>,
-  used_symbol_set: &'a HashSet<Symbol>,
-  top_level_mark: Mark,
+pub(crate) struct TreeShaker<'a> {
+  pub module_graph: &'a ModuleGraph,
+  pub module_identifier: Identifier,
+  pub used_indirect_symbol_set: &'a HashSet<IndirectTopLevelSymbol>,
+  pub used_symbol_set: &'a HashSet<Symbol>,
+  pub top_level_mark: Mark,
   /// First element of tuple is the position of body you want to insert with, the second element is the item you want to insert
-  insert_item_tuple_list: Vec<(usize, ModuleItem)>,
-  module_item_index: usize,
+  pub insert_item_tuple_list: Vec<(usize, ModuleItem)>,
+  pub module_item_index: usize,
 }
 
-impl<'a> Fold for TreeShaker<'a> {
-  noop_fold_type!();
-  fn fold_program(&mut self, node: Program) -> Program {
+impl<'a> VisitMut for TreeShaker<'a> {
+  noop_visit_mut_type!();
+  fn visit_mut_program(&mut self, node: &mut Program) {
     debug_assert!(GLOBALS.is_set());
-    node.fold_with(self)
+    node.visit_mut_with(self)
   }
 
-  fn fold_module(&mut self, mut node: Module) -> Module {
-    node.body = node
-      .body
-      .into_iter()
-      .enumerate()
-      .map(|(index, item)| {
-        self.module_item_index = index;
-        item.fold_with(self)
-      })
-      .collect();
+  fn visit_mut_module(&mut self, node: &mut Module) {
+    for (index, item) in node.body.iter_mut().enumerate() {
+      self.module_item_index = index;
+      item.visit_mut_with(self)
+    }
     for (position, module_item) in std::mem::take(&mut self.insert_item_tuple_list)
       .into_iter()
       .rev()
     {
       node.body.insert(position, module_item);
     }
-    node
   }
-  fn fold_module_item(&mut self, node: ModuleItem) -> ModuleItem {
+
+  fn visit_mut_module_item(&mut self, node: &mut ModuleItem) {
     match node {
       ModuleItem::ModuleDecl(module_decl) => match module_decl {
         ModuleDecl::Import(ref import) => {
@@ -94,39 +90,37 @@ impl<'a> Fold for TreeShaker<'a> {
             .module_graph_module_by_identifier(&module_identifier)
             .expect("TODO:");
           if !mgm.used {
-            ModuleItem::Stmt(Stmt::Empty(EmptyStmt { span: DUMMY_SP }))
+            *node = ModuleItem::Stmt(Stmt::Empty(EmptyStmt { span: DUMMY_SP }))
           } else {
-            ModuleItem::ModuleDecl(module_decl)
           }
         }
-        ModuleDecl::ExportDecl(decl) => match decl.decl {
-          Decl::Class(mut class) => {
+        ModuleDecl::ExportDecl(ref mut decl) => match decl.decl {
+          Decl::Class(ref mut class) => {
             let id = class.ident.to_id();
             let symbol = Symbol::from_id_and_uri(id.into(), self.module_identifier.into());
             if !self.used_symbol_set.contains(&symbol) {
               class.class.span = DUMMY_SP;
-              ModuleItem::Stmt(Stmt::Decl(Decl::Class(class)))
-            } else {
-              ModuleItem::ModuleDecl(ModuleDecl::ExportDecl(ExportDecl {
-                span: decl.span,
-                decl: Decl::Class(class),
-              }))
+              *node = ModuleItem::Stmt(Stmt::Decl(Decl::Class(ClassDecl {
+                ident: class.ident.take(),
+                declare: class.declare,
+                class: class.class.take(),
+              })))
             }
           }
-          Decl::Fn(mut func) => {
+          Decl::Fn(ref mut func) => {
             let id = func.ident.to_id();
             let symbol = Symbol::from_id_and_uri(id.into(), self.module_identifier.into());
             if !self.used_symbol_set.contains(&symbol) {
               func.function.span = DUMMY_SP;
-              ModuleItem::Stmt(Stmt::Decl(Decl::Fn(func)))
+              *node = ModuleItem::Stmt(Stmt::Decl(Decl::Fn(FnDecl {
+                ident: func.ident.take(),
+                declare: func.declare,
+                function: func.function.take(),
+              })))
             } else {
-              ModuleItem::ModuleDecl(ModuleDecl::ExportDecl(ExportDecl {
-                span: decl.span,
-                decl: Decl::Fn(func),
-              }))
             }
           }
-          Decl::Var(var) => {
+          Decl::Var(ref mut var) => {
             // assume a is used and b, c is unused
             // Convert
             // ```js
@@ -140,6 +134,7 @@ impl<'a> Fold for TreeShaker<'a> {
             // swc dce will drop `b`, and `c`
             let (used, unused): (Vec<_>, Vec<_>) = var
               .decls
+              .take()
               .into_iter()
               .map(|decl| match decl.name {
                 Pat::Ident(ident) => {
@@ -176,9 +171,9 @@ impl<'a> Fold for TreeShaker<'a> {
               ))
             }
             if used.is_empty() {
-              ModuleItem::Stmt(Stmt::Empty(EmptyStmt { span: DUMMY_SP }))
+              *node = ModuleItem::Stmt(Stmt::Empty(EmptyStmt { span: DUMMY_SP }));
             } else {
-              ModuleItem::ModuleDecl(ModuleDecl::ExportDecl(ExportDecl {
+              *node = ModuleItem::ModuleDecl(ModuleDecl::ExportDecl(ExportDecl {
                 span: DUMMY_SP,
                 decl: Decl::Var(Box::new(VarDecl {
                   span: var.span,
@@ -186,14 +181,14 @@ impl<'a> Fold for TreeShaker<'a> {
                   declare: var.declare,
                   decls: used.into_iter().map(|item| item.0).collect(),
                 })),
-              }))
+              }));
             }
           }
           Decl::TsInterface(_) | Decl::TsTypeAlias(_) | Decl::TsEnum(_) | Decl::TsModule(_) => {
             unreachable!("Javascript don't have these kinds asts")
           }
         },
-        ModuleDecl::ExportNamed(mut named) => {
+        ModuleDecl::ExportNamed(ref mut named) => {
           if let Some(ref src) = named.src {
             let before_legnth = named.specifiers.len();
             let module_identifier = self
@@ -204,9 +199,11 @@ impl<'a> Fold for TreeShaker<'a> {
               .module_graph_module_by_identifier(&module_identifier)
               .expect("TODO:");
             if !mgm.used {
-              return ModuleItem::Stmt(Stmt::Empty(EmptyStmt { span: DUMMY_SP }));
+              *node = ModuleItem::Stmt(Stmt::Empty(EmptyStmt { span: DUMMY_SP }));
+              return;
             }
             let specifiers = named
+              .take()
               .specifiers
               .into_iter()
               .filter(|specifier| match specifier {
@@ -241,10 +238,10 @@ impl<'a> Fold for TreeShaker<'a> {
             if !is_all_used {
               named.span = DUMMY_SP;
             }
-            ModuleItem::ModuleDecl(ModuleDecl::ExportNamed(named))
           } else {
             let before_legnth = named.specifiers.len();
             let specifiers = named
+              .take()
               .specifiers
               .into_iter()
               .filter(|specifier| match specifier {
@@ -277,18 +274,16 @@ impl<'a> Fold for TreeShaker<'a> {
             if !is_all_used {
               named.span = DUMMY_SP;
             }
-            ModuleItem::ModuleDecl(ModuleDecl::ExportNamed(named))
           }
         }
         ModuleDecl::ExportDefaultDecl(decl) => {
           let default_symbol = self.crate_virtual_default_symbol();
           let ctxt = default_symbol.id().ctxt;
           if self.used_symbol_set.contains(&default_symbol) {
-            ModuleItem::ModuleDecl(ModuleDecl::ExportDefaultDecl(decl))
           } else {
             let decl = match decl.decl {
-              DefaultDecl::Class(class) => {
-                let ident = if let Some(ident) = class.ident {
+              DefaultDecl::Class(ref mut class) => {
+                let ident = if let Some(ident) = class.ident.take() {
                   ident
                 } else {
                   let mut named = quote_ident!("__RSPACK_DEFAULT_EXPORT__");
@@ -298,11 +293,11 @@ impl<'a> Fold for TreeShaker<'a> {
                 Decl::Class(ClassDecl {
                   ident,
                   declare: false,
-                  class: class.class,
+                  class: class.class.take(),
                 })
               }
-              DefaultDecl::Fn(func) => {
-                let ident = if let Some(ident) = func.ident {
+              DefaultDecl::Fn(ref mut func) => {
+                let ident = if let Some(ident) = func.ident.take() {
                   ident
                 } else {
                   let mut named = quote_ident!("__RSPACK_DEFAULT_EXPORT__");
@@ -312,22 +307,23 @@ impl<'a> Fold for TreeShaker<'a> {
                 Decl::Fn(FnDecl {
                   ident,
                   declare: false,
-                  function: func.function,
+                  function: func.function.take(),
                 })
               }
-              DefaultDecl::TsInterfaceDecl(_) => todo!(),
+              DefaultDecl::TsInterfaceDecl(_) => {
+                unreachable!("We will not visit Typescript ast node after loader transform")
+              }
             };
-            ModuleItem::Stmt(Stmt::Decl(decl))
+            *node = ModuleItem::Stmt(Stmt::Decl(decl));
           }
         }
         ModuleDecl::ExportDefaultExpr(expr) => {
           let default_symbol = self.crate_virtual_default_symbol();
           if self.used_symbol_set.contains(&default_symbol) {
-            ModuleItem::ModuleDecl(ModuleDecl::ExportDefaultExpr(expr))
           } else {
             // convert the original expr to
             // var __RSPACK_DEFAULT_EXPORT__ = ${expr}
-            ModuleItem::Stmt(Stmt::Decl(Decl::Var(Box::new(VarDecl {
+            *node = ModuleItem::Stmt(Stmt::Decl(Decl::Var(Box::new(VarDecl {
               span: DUMMY_SP,
               kind: VarDeclKind::Let,
               declare: false,
@@ -341,10 +337,10 @@ impl<'a> Fold for TreeShaker<'a> {
                   },
                   type_ann: None,
                 }),
-                init: Some(expr.expr),
+                init: Some(expr.expr.take()),
                 definite: false,
               }],
-            }))))
+            }))));
           }
         }
         ModuleDecl::ExportAll(ref export_all) => {
@@ -356,16 +352,15 @@ impl<'a> Fold for TreeShaker<'a> {
             .module_graph_module_by_identifier(&module_identifier)
             .expect("TODO:");
           if !mgm.used {
-            ModuleItem::Stmt(Stmt::Empty(EmptyStmt { span: DUMMY_SP }))
+            *node = ModuleItem::Stmt(Stmt::Empty(EmptyStmt { span: DUMMY_SP }));
           } else {
-            ModuleItem::ModuleDecl(module_decl)
           }
         }
-        ModuleDecl::TsImportEquals(_) => ModuleItem::ModuleDecl(module_decl),
-        ModuleDecl::TsExportAssignment(_) => ModuleItem::ModuleDecl(module_decl),
-        ModuleDecl::TsNamespaceExport(_) => ModuleItem::ModuleDecl(module_decl),
+        ModuleDecl::TsImportEquals(_) => {}
+        ModuleDecl::TsExportAssignment(_) => {}
+        ModuleDecl::TsNamespaceExport(_) => {}
       },
-      ModuleItem::Stmt(_) => node,
+      ModuleItem::Stmt(_) => {}
     }
   }
 }

@@ -26,8 +26,9 @@ use swc_core::ecma::parser::Syntax;
 use swc_core::ecma::transforms::base::pass::Optional;
 use swc_core::ecma::transforms::module::common_js::Config as CommonjsConfig;
 use swc_core::ecma::visit::as_folder;
-use tree_shaking::tree_shaking_visitor;
+use tree_shaking::TreeShaker;
 
+// use tree_shaking::tree_shaking_visitor;
 use crate::visitors::rewrite::RewriteModuleUrl;
 mod rewrite;
 
@@ -163,22 +164,26 @@ pub fn run_after_pass(ast: &mut Ast, module: &dyn Module, generate_context: &mut
     //   }
     // }
 
-    let mut pass = chain!(
-      Optional::new(
-        tree_shaking_visitor(
-          &generate_context.compilation.module_graph,
-          module.identifier(),
-          &generate_context.compilation.used_symbol,
-          &generate_context.compilation.used_indirect_symbol,
-          top_level_mark,
-        ),
-        tree_shaking
-      ),
+    let mut p = chain!(
+      TreeShaker {
+        module_graph: &generate_context.compilation.module_graph,
+        module_identifier: module.identifier(),
+        used_indirect_symbol_set: &generate_context.compilation.used_indirect_symbol,
+        used_symbol_set: &generate_context.compilation.used_symbol,
+        top_level_mark,
+        module_item_index: 0,
+        insert_item_tuple_list: Vec::new(),
+      },
       Optional::new(
         Repeat::new(dce(Config::default(), unresolved_mark)),
         // extra branch to avoid doing dce twice, (minify will exec dce)
         tree_shaking && !minify.enable,
       ),
+    );
+
+    program.visit_mut_with(&mut p);
+    let mut pass = chain!(
+      // Optional::new(tree_shaking_visitor(,), tree_shaking),
       as_folder(RewriteModuleUrl::new(
         unresolved_mark,
         module,

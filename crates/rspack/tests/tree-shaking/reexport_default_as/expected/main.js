@@ -17,9 +17,8 @@ Object.defineProperty(exports, "__esModule", {
 });
 Object.defineProperty(exports, "Select", {
     enumerable: true,
-    get: ()=>_barJs.default
+    get: ()=>default
 });
-const _barJs = __webpack_require__.ir(__webpack_require__("./bar.js"));
 },
 "./index.js": function (module, exports, __webpack_require__) {
 "use strict";

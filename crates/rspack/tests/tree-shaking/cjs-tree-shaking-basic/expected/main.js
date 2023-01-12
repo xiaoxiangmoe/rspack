@@ -17,9 +17,8 @@ Object.defineProperty(exports, "__esModule", {
 });
 Object.defineProperty(exports, "myanswer", {
     enumerable: true,
-    get: ()=>_libJs.myanswer
+    get: ()=>myanswer
 });
-const _libJs = __webpack_require__("./lib.js");
 },
 "./index.js": function (module, exports, __webpack_require__) {
 "use strict";

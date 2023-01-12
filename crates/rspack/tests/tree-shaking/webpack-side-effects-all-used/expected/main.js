@@ -25,9 +25,8 @@ function _export(target, all) {
 }
 _export(exports, {
     x: ()=>x,
-    z: ()=>_cJs.z
+    z: ()=>z
 });
-const _cJs = __webpack_require__("../node_modules/pmodule/c.js");
 const _trackerJs = __webpack_require__("../node_modules/pmodule/tracker.js");
 var x = "x";
 (0, _trackerJs.track)("b.js");
@@ -57,12 +56,11 @@ function _export(target, all) {
     });
 }
 _export(exports, {
-    x: ()=>_bJs.x,
-    z: ()=>_bJs.z,
+    x: ()=>x,
+    z: ()=>z,
     default: ()=>_default
 });
 __webpack_require__.es(__webpack_require__("../node_modules/pmodule/a.js"), exports);
-const _bJs = __webpack_require__("../node_modules/pmodule/b.js");
 const _trackerJs = __webpack_require__("../node_modules/pmodule/tracker.js");
 (0, _trackerJs.track)("index.js");
 const _default = "def";

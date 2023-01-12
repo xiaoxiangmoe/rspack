@@ -39,11 +39,10 @@ Object.defineProperty(exports, "__esModule", {
 });
 Object.defineProperty(exports, "cccc", {
     enumerable: true,
-    get: ()=>_cJs.cccc
+    get: ()=>cccc
 });
 const _layoutJs = __webpack_require__.ir(__webpack_require__("./Layout.js"));
 const _somethingJs = __webpack_require__("./Something.js");
-const _cJs = __webpack_require__("./c.js");
 var L = _layoutJs.default;
 L.something = _somethingJs.something;
 },

@@ -20,9 +20,8 @@ Object.defineProperty(exports, "__esModule", {
 });
 Object.defineProperty(exports, "a", {
     enumerable: true,
-    get: ()=>_bazJs.a
+    get: ()=>a
 });
-const _bazJs = __webpack_require__("./baz.js");
 __webpack_require__.es(__webpack_require__("./bar.js"), exports);
 },
 "./index.js": function (module, exports, __webpack_require__) {
