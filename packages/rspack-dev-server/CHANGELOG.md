@@ -1,5 +1,17 @@
 # rspack-dev-server
 
+## 0.0.24
+
+### Patch Changes
+
+- 58b77bafcb: feat: add plugin-import
+- 4f432286b7: fix: devServer.hot should be true by default when used by rspack api
+- Updated dependencies [58b77bafcb]
+- Updated dependencies [4f432286b7]
+  - @rspack/dev-server@0.0.24
+  - @rspack/dev-middleware@0.0.24
+  - @rspack/dev-client@0.0.24
+
 ## 0.0.23
 
 ### Patch Changes

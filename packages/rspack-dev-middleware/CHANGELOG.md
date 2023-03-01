@@ -1,5 +1,20 @@
 # @rspack/dev-middleware
 
+## 0.0.24
+
+### Patch Changes
+
+- Updated dependencies [3cc27e32ac]
+- Updated dependencies [3495d3d726]
+- Updated dependencies [c456aed7e5]
+- Updated dependencies [abf34dc3dc]
+- Updated dependencies [e2466248df]
+- Updated dependencies [a22149e98a]
+- Updated dependencies [a528a8e061]
+- Updated dependencies [58b77bafcb]
+- Updated dependencies [6316c28e7b]
+  - @rspack/core@0.0.24
+
 ## 0.0.23
 
 ### Patch Changes
