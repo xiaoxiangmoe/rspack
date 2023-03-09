@@ -273,11 +273,11 @@ impl ParserAndGenerator for AssetParserAndGenerator {
         let p = Path::new(&m.resource_resolved_data().resource_path);
         p.file_stem().map(|s| s.to_string_lossy().to_string())
       }),
-      path: module.as_normal_module().map(|m| {
+      path: module.as_normal_module().and_then(|m| {
         Path::new(&m.resource_resolved_data().resource_path)
           .relative(&generate_context.compilation.options.context)
-          .to_string_lossy()
-          .to_string()
+          .parent()
+          .map(|p| p.to_string_lossy().to_string())
       }),
       extension: module.as_normal_module().and_then(|m| {
         Path::new(&m.resource_resolved_data().resource_path)
